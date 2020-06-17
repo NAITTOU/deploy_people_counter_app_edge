@@ -6,6 +6,8 @@
 
 ![people-counter-python](./images/people-counter-image.png)
 
+This project is part of the Udacity Nanodegree program in the Intel® Edge AI, most of the README.md file documentation , set up instructions and the project starter code can be found in the project original repository: https://github.com/udacity/nd131-openvino-fundamentals-project-starter.
+
 ## What it Does
 
 The people counter application will demonstrate how to create a smart video IoT solution using Intel® hardware and software tools. The app will detect people in a designated area, providing the number of people in the frame, average duration of people in frame, and total count.
@@ -85,11 +87,46 @@ From the main directory:
 
 ## What model to use
 
-It is up to you to decide on what model to use for the application. You need to find a model not already converted to Intermediate Representation format (i.e. not one of the Intel® Pre-Trained Models), convert it, and utilize the converted model in your application.
+It is up to you to decide on what model to use for the application. You can use one of the Intel® Pre-Trained Models or any pre-trained model from any supported deep learning framework by OpenVINO™ Toolkit (e.g Tensorflow) after it converted to Intermediate Representation format.
 
-Note that you may need to do additional processing of the output to handle incorrect detections, such as adjusting confidence threshold or accounting for 1-2 frames where the model fails to see a person already counted and would otherwise double count.
+Note if you use a pre-trained model from a supported deep learning framework by OpenVINO™ Toolkit, then you need to convert the model Intermediate Representation format first before you feed it to the inference engine, and utilize the converted model in your application.
 
-**If you are otherwise unable to find a suitable model after attempting and successfully converting at least three other models**, you can document in your write-up what the models were, how you converted them, and why they failed, and then utilize any of the Intel® Pre-Trained Models that may perform better.
+
+### Model Used
+
+* Setting a path environment variable for the Model Optimizer to help shorten the path to the ssd_v2_support.json file used.
+ export MOD_OPT=/opt/intel/openvino/deployment_tools/model_optimizer
+
+* Creating used folder : 
+    - mkdir converted_tf
+    - cd converted_tf
+    - mkdir Faster_R_CNN 
+
+For this project I used [faster_rcnn_inception_v2_coco ] model from the Tensorflow detection model zoo, please note that if you are using other model ,then you need to pay attention to the input pre-processing and running the inference step as they depend on the model's input layer shape and architecture. you might want to change their corresponding code accordingly to the model documentation.
+
+  - Source link : 
+  
+  [http://download.tensorflow.org/models/object_detection/faster_rcnn_inception_v2_coco_2018_01_28.tar.gz]
+  
+  - Download model : 
+
+  ```
+  wget -c http://download.tensorflow.org/models/object_detection/faster_rcnn_inception_v2_coco_2018_01_28.tar.gz
+  ```
+
+  
+ - unpack it : 
+ 
+ ```
+ tar -xvf faster_rcnn_inception_v2_coco_2018_01_28.tar.gz
+ ```
+  
+  - I converted the model to an Intermediate Representation with the following arguments : 
+  
+```
+   python3 $MOD_OPT/mo_tf.py --input_model ./faster_rcnn_inception_v2_coco_2018_01_28/frozen_inference_graph.pb --tensorflow_use_custom_operations_config $MOD_OPT/extensions/front/tf/faster_rcnn_support.json --tensorflow_object_detection_api_pipeline_config ./faster_rcnn_inception_v2_coco_2018_01_28/pipeline.config --reverse_input_channels --output_dir ./converted_tf/Faster_R_CNN --input_shape [1,600,1024,3]
+```
+
 
 ## Run the application
 
@@ -142,7 +179,7 @@ You should also be able to run the application with Python 3.6, although newer v
 
 #### Running on the CPU
 
-When running Intel® Distribution of OpenVINO™ toolkit Python applications on the CPU, the CPU extension library is required. This can be found at: 
+When running Intel® Distribution of OpenVINO™ toolkit Python applications on the CPU, the CPU extension library is required. This can be found at (CPU extensions are removed in toolkit versions from 2020R1 onward) : 
 
 ```
 /opt/intel/openvino/deployment_tools/inference_engine/lib/intel64/
@@ -153,7 +190,8 @@ When running Intel® Distribution of OpenVINO™ toolkit Python applications on 
 Though by default application runs on CPU, this can also be explicitly specified by ```-d CPU``` command-line argument:
 
 ```
-python main.py -i resources/Pedestrian_Detect_2_1_1.mp4 -m your-model.xml -l /opt/intel/openvino/deployment_tools/inference_engine/lib/intel64/libcpu_extension_sse4.so -d CPU -pt 0.6 | ffmpeg -v warning -f rawvideo -pixel_format bgr24 -video_size 768x432 -framerate 24 -i - http://0.0.0.0:3004/fac.ffm
+python main.py -i resources/Pedestrian_Detect_2_1_1.mp4 -m converted_tf/Faster_R_CNN/frozen_inference_graph.xml -l /opt/intel/openvino/deployment_tools/inference_engine/lib/intel64/libcpu_extension_sse4.so -d CPU -pt 0.6 | ffmpeg -v warning -f rawvideo -pixel_format bgr24 -video_size 768x432 -framerate 24 -i - http://0.0.0.0:3004/fac.ffm
+
 ```
 If you are in the classroom workspace, use the “Open App” button to view the output. If working locally, to see the output on a web based interface, open the link [http://0.0.0.0:3004](http://0.0.0.0:3004/) in a browser.
 

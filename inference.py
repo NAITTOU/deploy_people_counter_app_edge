@@ -36,32 +36,92 @@ class Network:
 
     def __init__(self):
         ### TODO: Initialize any class variables desired ###
-
-    def load_model(self):
+        self.plugin = None
+        self.network = None
+        self.input_blob = None
+        self.output_blob = None
+        self.net_plugin = None
+        self.infer_request_handle = None
+        
+    def load_model(self ,model, device="CPU", cpu_extension=None):
         ### TODO: Load the model ###
+        
+        model_xml = model
+        model_bin = os.path.splitext(model_xml)[0] + ".bin"
+        self.network = IENetwork(model=model_xml, weights=model_bin)
+      
+        self.plugin = IECore()
         ### TODO: Check for supported layers ###
+        
+        supported_layers = self.plugin.query_network(network=self.network, device_name="CPU")
+        
         ### TODO: Add any necessary extensions ###
+        unsupported_layers = [l for l in self.network.layers.keys() if l not in supported_layers]
+        
+        if len(unsupported_layers) != 0:
+            
+            log.warning("Unsupported layers found: {}".format(unsupported_layers))
+            
+            if cpu_extension and "CPU" in device:
+                
+                log.info("Adding a CPU extension ...")
+                self.plugin.add_extension(cpu_extension, device)
+                log.info("The CPU extension was added")
+                
+                supported_layers = self.plugin.query_network(network=self.network, device_name="CPU")
+                unsupported_layers = [l for l in self.network.layers.keys() if l not in supported_layers]
+                
+                if len(unsupported_layers) != 0:
+                    
+                    log.warning("There Still Unsuported layers even after the extension was added {}".format(unsupported_layers))
+                    log.info("exiting program ...")
+                    exit(1)
+                
+                log.info("All the layers of you model are supported now by the Inference engine ")
+                     
+            else:
+                
+                log.ERROR("Check whether extensions are available to add to IECore.")
+                log.info("exiting program ...")
+                exit(1)
+         
+        
+        self.net_plugin = self.plugin.load_network(self.network, device)
+        self.input_blob = sorted(self.network.inputs)
+        self.output_blob = next(iter(self.network.outputs))
+        
         ### TODO: Return the loaded inference plugin ###
+  
         ### Note: You may need to update the function parameters. ###
-        return
+        return self.net_plugin
 
     def get_input_shape(self):
         ### TODO: Return the shape of the input layer ###
-        return
+        
+        return  [self.network.inputs[x].shape for x in  self.input_blob]
 
-    def exec_net(self):
+    def exec_net(self,image):
         ### TODO: Start an asynchronous request ###
+        
+        self.infer_request_handle = self.net_plugin.start_async(request_id=0, inputs=image)
+        
         ### TODO: Return any necessary information ###
         ### Note: You may need to update the function parameters. ###
         return
 
     def wait(self):
         ### TODO: Wait for the request to be complete. ###
+        
+        status = self.infer_request_handle.wait(-1)
+        
         ### TODO: Return any necessary information ###
         ### Note: You may need to update the function parameters. ###
-        return
+        return status
 
     def get_output(self):
         ### TODO: Extract and return the output results
+        
+        output = self.infer_request_handle.outputs[self.output_blob]
+        
         ### Note: You may need to update the function parameters. ###
-        return
+        return output
